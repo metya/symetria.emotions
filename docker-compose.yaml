@@ -5,6 +5,8 @@ services:
     build: Dockerfile
     container_name: symetria_emotions
     restart: always
+    expose:
+      - 5000
     environment:
       VIRTUAL_HOST: symetria.chad-partners.com
       LETSENCRYPT_HOST: symetria.chad-partners.com
