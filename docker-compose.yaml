@@ -1,0 +1,16 @@
+version: '3'
+
+services:
+  symetria_emotions:
+    build: Dockerfile
+    container_name: symetria_emotions
+    restart: always
+    environment:
+      VIRTUAL_HOST: symetria.chad-partners.com
+      LETSENCRYPT_HOST: symetria.chad-partners.com
+    networks:
+      - nginx-proxy
+
+networks:
+  nginx-proxy:
+    external: true

@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <!-- Required meta tags -->
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <script src="https://cdn.jsdelivr.net/npm/@vladmandic/human/dist/human.js"></script>
+    <script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
+
+</head>
+
+<body>
+    <div id="data-container"></div>
+    {# <form id="data-form" action="/send_data" method="post"> #}
+        {# <input type="hidden" name="data" id="data-input"> #}
+        {# <input type="submit" value="Отправить данные"> #}
+        <canvas id="canvas" style="margin: 0 auto; width: 100%"></canvas>
+        <pre id="log" style="padding: 8px; position: fixed; bottom: 0"></pre>
+        <script>
+            console.log("start", Human);
+
+
+            const humanConfig = { // user configuration for human, used to fine-tune behavior
+                modelBasePath: 'https://cdn.jsdelivr.net/npm/@vladmandic/human/models/', // models can be loaded directly from cdn as well
+                filter: { enabled: true, equalization: true, flip: false },
+                face: { enabled: true, detector: { rotation: false }, mesh: { enabled: false }, attention: { enabled: true }, iris: { enabled: true }, description: { enabled: true }, emotion: { enabled: true } },
+                body: { enabled: false },
+                hand: { enabled: false },
+                gesture: { enabled: false },
+                object: { enabled: false },
+                segmentation: { enabled: false },
+            };
+
+            const human = new Human.Human(humanConfig);
+            //console.log("continue", human);
+
+            const canvas = document.getElementById('canvas');
+            //const dataForm = document.getElementById('data-form');
+            //const dataInput = document.getElementById('data-input');
+            //const canvas = $('#canvas').get(0)
+
+            var interpolated
+            var need_generation = true
+            var need_playing = true
+            var text
+
+            function splitTextIntoLines(text, wordsPerLine) {
+                const words = text.split(' ');
+                let line = '';
+                let j = 0;
+                for (let i = 0; i < words.length; i++) {
+                    if (j < wordsPerLine) {
+                        line += words[i] + ' '; 
+                        j += 1;
+                    } else {
+                        line += '\n'; 
+                        j = 0;
+                    }
+                }
+                return line;
+            }
+
+            async function drawLoop() { // main screen refresh loop
+                interpolated = human.next(); // get smoothened result using last-known results which are continously updated based on input webcam video
+                human.draw.canvas(human.webcam.element, canvas); // draw webcam video to screen canvas // better than using procesed image as this loop happens faster than processing loop
+                await human.draw.all(canvas, interpolated);
+                document.getElementById('log').innerHTML =
+                    `human version: ${human.version} | ` +
+                    `tfjs version: ${human.tf.version['tfjs-core']}<br>` +
+                    `platform: ${human.env.platform} | ` +
+                    `agent ${human.env.agent}<br>` +
+                    `need_generation ${need_generation}<br>` + // draw labels, boxes, lines, etc.
+                    `text: ${text}`;
+            }
+
+            async function playAudio(audioSrc) {
+                console.log('playing audio')
+                const audioPlayer = new Audio(audioSrc);
+                audioPlayer.addEventListener('ended', function () {
+                    need_generation = true;
+                    need_playing = true;
+                    console.log('playing done');
+                });
+                audioPlayer.play();
+            }
+
+            async function checkForNewAudio() {
+                $.ajax({
+                    url: '/generate_audio',
+                    method: 'GET',
+                    success: function (response) {
+                        need_generation = response.need_generation;
+                        if (response.newAudio && need_playing) {
+                            console.log(response.newAudio)
+                            // Если есть новый аудиофайл, проигрывайте его на странице
+                            text = splitTextIntoLines(response.text, 20);
+                            need_generation = false;
+                            need_playing = false;
+                            playAudio(response.filename);
+                        }
+                    },
+                    error: function (error) {
+                        console.error('Ошибка при проверке наличия нового аудиофайла:', error);
+                    }
+                });
+            }
+
+            async function send_data() {
+                $.ajax({
+                    url: '/send_data',
+                    type: 'POST',
+                    data: { data: JSON.stringify(interpolated), state: need_generation },
+                    success: function (response) {
+                        console.log('face data sent!');
+                    }
+                });
+            };
+
+
+
+            async function main() { // main entry point
+                document.getElementById('log').innerHTML =
+                    `human version: ${human.version} | ` +
+                    `tfjs version: ${human.tf.version['tfjs-core']} <br>` +
+                    `platform: ${human.env.platform} | ` +
+                    `agent ${human.env.agent}<br>` +
+                    `need_generation ${need_generation}<br>` +
+                    `text: ${text}`;
+
+                await human.webcam.start({ crop: true }); // find webcam and start it
+                human.video(human.webcam.element); // instruct human to continously detect video frames
+                canvas.width = human.webcam.width; // set canvas resolution to input webcam native resolution
+                canvas.height = human.webcam.height;
+                canvas.onclick = async () => { // pause when clicked on screen and resume on next click
+                    if (human.webcam.paused) await human.webcam.play();
+                    else human.webcam.pause();
+                };
+                await setInterval(drawLoop, 30); // start draw loop
+                await setInterval(send_data, 2000);
+                await setInterval(checkForNewAudio, 5000)
+            };
+
+
+
+            window.onload = main;
+
+
+        </script>
+</body>
+
+</html>
