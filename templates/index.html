@@ -40,11 +40,11 @@
             //const dataInput = document.getElementById('data-input');
             //const canvas = $('#canvas').get(0)
 
-                                var interpolated;
-                                var need_generation = true;
-                                var need_playing = true;
-                                var text;
-                                var prompt;
+                var interpolated;
+                var need_generation = true;
+                var need_playing = true;
+                var text;
+                var prompt;
 
             function splitTextIntoLines(text, wordsPerLine) {
                 const words = text.split(' ');
@@ -52,10 +52,10 @@
                 let j = 0;
                 for (let i = 0; i < words.length; i++) {
                     if (j < wordsPerLine) {
-                        line += words[i] + ' '; 
+                        line += words[i] + ' ';
                         j += 1;
                     } else {
-                        line += '\n'; 
+                        line += '\n';
                         j = 0;
                     }
                 }

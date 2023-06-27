@@ -22,18 +22,19 @@ sample_rate = 48000
 speaker='xenia'
 example_text = 'В недрах тундры выдры в г+етрах т+ырят в вёдра ядра к+едров.'
 
-state = {}
-state['count'] = 0
-state['size'] = []
-state['gender'] = []
-state['emotion'] = []
-state['age'] = []
-state['prompt'] = ""
-state['need_generation'] = True
-state["new_audio"] = False
-state["generated_text"] = ""
-state["need_audio"] = False
+class State:
+    count = 0
+    size = []
+    gender = []
+    emotion = []
+    age = []
+    prompt = ""
+    generation_text = ""
+    need_generation = True
+    new_audio = False
+    need_audio = False
 
+state = State()
 
 app = Flask(__name__)
 # app.logger.setLevel(logging.DEBUG)
@@ -45,36 +46,36 @@ def send_data():
     # Получаем данные из запроса
     data = request.form['data']
     need_generation = request.form['state']
-    state['need_generation'] = need_generation
+    state.need_generation = (need_generation in ["true", 'True'])
     # Обработка полученных данных
     detections = json.loads(data)
     if detections['face']:
-        if state['count'] < 0 or state['new_audio']: state['count'] = 0
-        if state['count'] > 5 and state["need_generation"]:
-            state['count'] = 0
+        if state.count < 0 or state.new_audio: state.count = 0
+        if state.count > 5 and state.need_generation:
+            state.count = 0
             # emotion = max(set(state['emotion']), key=state['emotion'].count), 
             # sex = max(set(state['gender']), key=state['gender'].count), 
             # age = sum(state['age'])/len(state['age']),
-            # state['emotion'], state['age'], state['sex'] = [], [], []
+            state.emotion, state.age, state.gender = [], [], []
             emotion = detections['face'][0]['age']
             sex = detections['face'][0]['gender']
             age = detections['face'][0]['age']
             app.logger.info(f'{emotion=}, {sex=}, {age=}') 
-            state["prompt"] = generate_prompt(emotion, age, sex)
-            state["generated_text"] = generate_text(state["prompt"]) 
+            state.prompt = generate_prompt(emotion, age, sex)
+            state.generation_text = generate_text(state.prompt) 
         elif detections['face'][0]['size'][0] > 200:
-            state['age'].append(detections['face'][0]['age'])
-            state["gender"].append(detections['face'][0]['gender'])
-            state["emotion"].append(detections['face'][0]['emotion'][0]['emotion'])
-            state['count'] += 1
+            state.age.append(detections['face'][0]['age'])
+            state.gender.append(detections['face'][0]['gender'])
+            state.emotion.append(detections['face'][0]['emotion'][0]['emotion'])
+            state.count += 1
         else:
-            state['count'] -= 1
+            state.count -= 1
     else:
-        state['count'] -= 1
+        state.count -= 1
         # state["size"].append(detections['face'][0]['size'][0])
         # print(detections['face'][0])
     # print(detections['face'][0]['age'], detections['face'][0]['emotion'], detections['face'][0]['gender'])
-
+    app.logger.info(f"{state.count=}")
 
     return data
 
@@ -82,27 +83,27 @@ def send_data():
 def generate_audio():
     app.logger.info('checking need generation')
 
-    if state["need_audio"]:
+    if state.need_audio:
         app.logger.info('starting audio generation')
-        audio_paths = model.save_wav(text=state['generated_text'],
+        audio_paths = model.save_wav(text=state.generation_text,
                                     speaker=speaker,
                                     sample_rate=sample_rate,
                                     audio_path="static/audio.wav")
         app.logger.info('generating audio is done')
-        state["new_audio"] = True
-        state["need_generation"] = False
-        state['need_audio'] = False
+        state.new_audio = True
+        state.need_generation = False
+        state.need_audio = False
     else:
-        state['new_audio'] = False
+        state.new_audio = False
         
-    app.logger.info(f'\n{state["need_audio"]=},\n{state["new_audio"]=},\n{state["need_generation"]=}')    
+    app.logger.info(f'\n{state.need_audio=},\n{state.new_audio=},\n{state.need_generation=}')    
 
     response = {
-        'newAudio': state["new_audio"],
-        'need_generation': state["need_generation"],
+        'newAudio': state.new_audio,
+        'need_generation': state.need_generation,
         'filename': "audio.wav",
-        'text': state['generated_text'],
-        'prompt': state['prompt']
+        'text': state.generation_text,
+        'prompt': state.prompt
     }
 
     return jsonify(response)
@@ -151,8 +152,8 @@ def generate_text(prompt):
                                 {"role": "system", "content": "Ты — это арт объект выставки про взаимодействие машины и человека."},
                                 {"role": "user", "content": prompt},
                                 ])
-    state["need_generation"] = False
-    state["need_audio"] = True
+    state.need_generation = False
+    state.need_audio = True
     app.logger.info("openai generation is done")
     return response['choices'][0]['message']['content'] # type: ignore
 
