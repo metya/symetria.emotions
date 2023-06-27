@@ -89,10 +89,10 @@
 
             async function checkForNewAudio() {
                 $.ajax({
-                    url: '/generate_audio',
+                    url: '/check_audio',
                     method: 'GET',
                     success: function (response) {
-                        need_generation = response.need_generation;
+                        // need_generation = response.need_generation;
                         if (response.newAudio && need_playing) {
                             console.log(response.newAudio)
                             // Если есть новый аудиофайл, проигрывайте его на странице
@@ -140,7 +140,7 @@
                     else human.webcam.pause();
                 };
                 await setInterval(drawLoop, 30); // start draw loop
-                await setInterval(send_data, 2000);
+                await setInterval(send_data, 1000);
                 await setInterval(checkForNewAudio, 5000)
             };
 

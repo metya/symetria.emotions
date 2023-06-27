@@ -33,6 +33,7 @@ class State:
     need_generation = True
     new_audio = False
     need_audio = False
+    need_generation_from_client = True
 
 state = State()
 
@@ -46,21 +47,22 @@ def send_data():
     # Получаем данные из запроса
     data = request.form['data']
     need_generation = request.form['state']
-    state.need_generation = (need_generation in ["true", 'True'])
+    state.need_generation_from_client = (need_generation in ["true", 'True'])
     # Обработка полученных данных
     detections = json.loads(data)
     if detections['face']:
         if state.count < 0 or state.new_audio: state.count = 0
-        if state.count > 5 and state.need_generation:
+        if state.count > 5 and state.need_generation and state.need_generation_from_client:
+            app.logger.info(f"time for generation {state.count=}, {state.need_generation=}, {state.need_generation_from_client=}")
             state.count = 0
             # emotion = max(set(state['emotion']), key=state['emotion'].count), 
             # sex = max(set(state['gender']), key=state['gender'].count), 
             # age = sum(state['age'])/len(state['age']),
             state.emotion, state.age, state.gender = [], [], []
-            emotion = detections['face'][0]['age']
+            emotion = detections['face'][0]['emotion']
             sex = detections['face'][0]['gender']
             age = detections['face'][0]['age']
-            app.logger.info(f'{emotion=}, {sex=}, {age=}') 
+            app.logger.info(f'\n{emotion=}, \n{sex=}, \n{age=}') 
             state.prompt = generate_prompt(emotion, age, sex)
             state.generation_text = generate_text(state.prompt) 
         elif detections['face'][0]['size'][0] > 200:
@@ -79,20 +81,12 @@ def send_data():
 
     return data
 
-@app.route('/generate_audio', methods = ["GET", "POST"])
-def generate_audio():
-    app.logger.info('checking need generation')
+@app.route('/check_audio', methods = ["GET", "POST"])
+def check_audio():
+    app.logger.info(f'checking need generation {state.need_generation=}, {state.need_audio=}')
 
     if state.need_audio:
-        app.logger.info('starting audio generation')
-        audio_paths = model.save_wav(text=state.generation_text,
-                                    speaker=speaker,
-                                    sample_rate=sample_rate,
-                                    audio_path="static/audio.wav")
-        app.logger.info('generating audio is done')
-        state.new_audio = True
-        state.need_generation = False
-        state.need_audio = False
+        generate_audio(state.generation_text)
     else:
         state.new_audio = False
         
@@ -105,7 +99,7 @@ def generate_audio():
         'text': state.generation_text,
         'prompt': state.prompt
     }
-
+    app.logger.info("response if ready")
     return jsonify(response)
 
 @app.route("/audio.wav")
@@ -143,6 +137,7 @@ def generate_prompt(emotion, age, sex):
     return prompt
 
 def generate_text(prompt):
+    state.need_generation = False
     app.logger.info("start generating text from openai")
     response = openai.ChatCompletion.create(
                         model="gpt-3.5-turbo",
@@ -152,10 +147,20 @@ def generate_text(prompt):
                                 {"role": "system", "content": "Ты — это арт объект выставки про взаимодействие машины и человека."},
                                 {"role": "user", "content": prompt},
                                 ])
-    state.need_generation = False
     state.need_audio = True
     app.logger.info("openai generation is done")
     return response['choices'][0]['message']['content'] # type: ignore
+
+def generate_audio(sample_text):
+    app.logger.info('starting audio generation')
+    state.need_audio = False
+    state.need_generation = False
+    audio_paths = model.save_wav(text=sample_text,
+                                speaker=speaker,
+                                sample_rate=sample_rate,
+                                audio_path="static/audio.wav")
+    app.logger.info('generating audio is done')
+    state.new_audio = True
 
 
 if __name__ == '__main__':
