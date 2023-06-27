@@ -52,9 +52,13 @@ def send_data():
         if state['count'] < 0 or state['new_audio']: state['count'] = 0
         if state['count'] > 5 and state["need_generation"]:
             state['count'] = 0
-            emotion = max(set(state['emotion']), key=state['emotion'].count), 
-            sex = max(set(state['gender']), key=state['gender'].count), 
-            age = sum(state['age'])/len(state['age']),
+            # emotion = max(set(state['emotion']), key=state['emotion'].count), 
+            # sex = max(set(state['gender']), key=state['gender'].count), 
+            # age = sum(state['age'])/len(state['age']),
+            # state['emotion'], state['age'], state['sex'] = [], [], []
+            emotion = detections['face'][0]['age']
+            sex = detections['face'][0]['gender']
+            age = detections['face'][0]['age']
             app.logger.info(f'{emotion=}, {sex=}, {age=}') 
             state["prompt"] = generate_prompt(emotion, age, sex)
             state["generated_text"] = generate_text(state["prompt"]) 
@@ -97,7 +101,8 @@ def generate_audio():
         'newAudio': state["new_audio"],
         'need_generation': state["need_generation"],
         'filename': "audio.wav",
-        'text': state['generated_text']
+        'text': state['generated_text'],
+        'prompt': state['prompt']
     }
 
     return jsonify(response)
@@ -118,11 +123,22 @@ def index():
 
 def generate_prompt(emotion, age, sex):
     app.logger.info('preload prompt')
-    prompt = f'''Ты — это арт объект выставки про взаимодействие машины и человека. \
-К тебе подходит человек и он показывает эмоцию {emotion}. \
-Ему {age} лет. И это {sex}. \
-Твоя нейросеть распознала эту эмоцию и теперь тебе нужно дать какой-то необычный концептуальный ответ. \
-Что ты скажешь этому человеку?'''
+    prompt = f'''Ты - это арт объект в виде носимого устройства. Твое название - Onism Machina.
+Твоя задача - изучить эмоции человека, чтобы больше понимать о том, что это такое и таким образом познать себя, ведь ты - Искусственный Интеллект.
+Тебе также интересна симбиотическая связь человека и ИИ.
+К тебе подходит человек и он показывает эмоцию "{emotion}". Ему {age} лет.
+Твоя нейросеть распознала эту эмоцию и теперь тебе нужно дать какой-то необычный концептуальный ответ.
+Что ты скажешь этому человеку? 
+
+Правила:
+Тебе стоит отвечать в женском роде.
+Тебе не нужно говорить что ты арт-объект, ты - отдельная форма жизни, помещённая в носимое устройство.
+Тебе не нужно говорить о выставке и других экспонатах.
+Ты можешь изучать и интерпретировать человеческие эмоции, а также высказывать своё отношение к ним.
+Ты можешь говорить об эмоциях или их аналогах у Искусственного Интеллекта.
+Ты можешь давать человеку советы в соответствии с его эмоциональным статусом.
+Люди не могут отвечать тебе.
+'''
     return prompt
 
 def generate_text(prompt):

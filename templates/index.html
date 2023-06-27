@@ -40,10 +40,11 @@
             //const dataInput = document.getElementById('data-input');
             //const canvas = $('#canvas').get(0)
 
-            var interpolated
-            var need_generation = true
-            var need_playing = true
-            var text
+                                var interpolated;
+                                var need_generation = true;
+                                var need_playing = true;
+                                var text;
+                                var prompt;
 
             function splitTextIntoLines(text, wordsPerLine) {
                 const words = text.split(' ');
@@ -71,6 +72,7 @@
                     `platform: ${human.env.platform} | ` +
                     `agent ${human.env.agent}<br>` +
                     `need_generation ${need_generation}<br>` + // draw labels, boxes, lines, etc.
+                `prompt ${prompt}<br>` +
                     `text: ${text}`;
             }
 
@@ -95,6 +97,7 @@
                             console.log(response.newAudio)
                             // Если есть новый аудиофайл, проигрывайте его на странице
                             text = splitTextIntoLines(response.text, 20);
+                            prompt = splitTextIntoLines(response.prompt, 20);
                             need_generation = false;
                             need_playing = false;
                             playAudio(response.filename);

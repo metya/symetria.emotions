@@ -2,7 +2,7 @@ version: '3'
 
 services:
   symetria_emotions:
-    build: Dockerfile
+    build: .
     container_name: symetria_emotions
     restart: always
     expose:
