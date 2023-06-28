@@ -34,6 +34,7 @@ class State:
     new_audio = False
     need_audio = False
     need_generation_from_client = True
+    big_head = False
 
 state = State()
 
@@ -47,7 +48,9 @@ def send_data():
     # Получаем данные из запроса
     data = request.form['data']
     need_generation = request.form['state']
-    state.need_generation_from_client = (need_generation in ["true", 'True'])
+    state.need_generation_from_client = (need_generation in ["true", "True"])
+    # if state.need_generation_from_client and state.count > 5:
+    #     state.count = 0
     # Обработка полученных данных
     detections = json.loads(data)
     if detections['face']:
@@ -58,26 +61,28 @@ def send_data():
             # emotion = max(set(state['emotion']), key=state['emotion'].count), 
             # sex = max(set(state['gender']), key=state['gender'].count), 
             # age = sum(state['age'])/len(state['age']),
-            state.emotion, state.age, state.gender = [], [], []
-            emotion = detections['face'][0]['emotion']
+            # state.emotion, state.age, state.gender = [], [], []
+            emotion = detections['face'][0]['emotion'][0]['emotion']
             sex = detections['face'][0]['gender']
             age = detections['face'][0]['age']
             app.logger.info(f'\n{emotion=}, \n{sex=}, \n{age=}') 
             state.prompt = generate_prompt(emotion, age, sex)
             state.generation_text = generate_text(state.prompt) 
         elif detections['face'][0]['size'][0] > 200:
-            state.age.append(detections['face'][0]['age'])
-            state.gender.append(detections['face'][0]['gender'])
-            state.emotion.append(detections['face'][0]['emotion'][0]['emotion'])
+            # state.age.append(detections['face'][0]['age'])
+            # state.gender.append(detections['face'][0]['gender'])
+            # state.emotion.append(detections['face'][0]['emotion'][0]['emotion'])
+            state.big_head = True
             state.count += 1
         else:
+            state.big_head = False
             state.count -= 1
     else:
         state.count -= 1
         # state["size"].append(detections['face'][0]['size'][0])
         # print(detections['face'][0])
     # print(detections['face'][0]['age'], detections['face'][0]['emotion'], detections['face'][0]['gender'])
-    app.logger.info(f"{state.count=}")
+    app.logger.info(f"STATUS {state.count=}, {state.need_generation=}, {state.need_generation_from_client=}")
 
     return data
 
@@ -85,7 +90,7 @@ def send_data():
 def check_audio():
     app.logger.info(f'checking need generation {state.need_generation=}, {state.need_audio=}')
 
-    if state.need_audio:
+    if state.need_audio and state.big_head:
         generate_audio(state.generation_text)
     else:
         state.new_audio = False
@@ -99,11 +104,12 @@ def check_audio():
         'text': state.generation_text,
         'prompt': state.prompt
     }
-    app.logger.info("response if ready")
+    app.logger.info("response ready")
     return jsonify(response)
 
 @app.route("/audio.wav")
 def audio():
+    state.need_generation = True
     # print("Requested path:", request.path)
     # print("File path:", os.path.join(app.static_folder, 'audio.wav'))
     return app.send_static_file('audio.wav')
@@ -121,7 +127,7 @@ def generate_prompt(emotion, age, sex):
     prompt = f'''Ты - это арт объект в виде носимого устройства. Твое название - Onism Machina.
 Твоя задача - изучить эмоции человека, чтобы больше понимать о том, что это такое и таким образом познать себя, ведь ты - Искусственный Интеллект.
 Тебе также интересна симбиотическая связь человека и ИИ.
-К тебе подходит человек и он показывает эмоцию "{emotion}". Ему {age} лет.
+К тебе подходит человек и он показывает эмоцию {emotion}. Ему {age} лет.
 Твоя нейросеть распознала эту эмоцию и теперь тебе нужно дать какой-то необычный концептуальный ответ.
 Что ты скажешь этому человеку? 
 
@@ -163,7 +169,9 @@ def generate_audio(sample_text):
     state.new_audio = True
 
 
+
 if __name__ == '__main__':
+    app.logger.setLevel("DEBUG")
     app.logger.info('start app')
     app.run(debug=True, host="0.0.0.0") 
         # ssl_context=("127.0.0.1.pem", "127.0.0.1-key.pem"))
