@@ -52,13 +52,14 @@ def send_data():
     data = request.form['data']
     need_generation = request.form['state']
     state.need_generation_from_client = (need_generation in ["true", "True"])
-    if state.need_generation_from_client and state.count > 20:
+    # if state.need_generation_from_client and 
+    if state.count < -10 or state.count > 60:
         state.count = 0
         state.need_generation = True
 
     # Обработка полученных данных
     detections = json.loads(data)
-    if detections['face']:
+    if len(detections['face']) > 0:
         if state.count < 0 or state.new_audio: state.count = 0
         if state.count > 5 and state.need_generation and state.need_generation_from_client:
             app.logger.info(f"time for generation {state.count=}, {state.need_generation=}, {state.need_generation_from_client=}")
@@ -84,9 +85,7 @@ def send_data():
             state.count -= 1
     else:
         state.count -= 1
-        # state["size"].append(detections['face'][0]['size'][0])
-        # print(detections['face'][0])
-    # print(detections['face'][0]['age'], detections['face'][0]['emotion'], detections['face'][0]['gender'])
+
     app.logger.info(f"STATUS {state.count=}, {state.need_generation=}, {state.need_generation_from_client=}")
 
     return data
@@ -114,8 +113,6 @@ def check_audio():
 @app.route("/audio.wav")
 def audio():
     state.need_generation = True
-    # print("Requested path:", request.path)
-    # print("File path:", os.path.join(app.static_folder, 'audio.wav'))
     return app.send_static_file('audio.wav')
 
 
@@ -152,7 +149,7 @@ def generate_text(prompt):
     response = openai.ChatCompletion.create(
                         model="gpt-3.5-turbo",
                         temperature=1,
-                        max_tokens=1000,
+                        max_tokens=800,
                         messages=[
                                 {"role": "system", "content": "Ты — это арт объект выставки про взаимодействие машины и человека."},
                                 {"role": "user", "content": prompt},
@@ -175,7 +172,7 @@ def generate_audio(sample_text):
 
 def trim_text(example_text):
     if len(example_text) >= 1000:
-        app.logger.info('TEXT IS TOO LONG - TRIM!')
+        app.logger.info(f'TEXT IS TOO LONG {len(example_text)} - TRIM!')
         for i in range(1000, 500, -1):
             if example_text[i] in ['.', '?', '...']:
                 return example_text[:i+1]
@@ -186,5 +183,4 @@ def trim_text(example_text):
 if __name__ == '__main__':
     app.logger.setLevel("DEBUG")
     app.logger.info('start app')
-    app.run(debug=True, host="0.0.0.0") 
-        # ssl_context=("127.0.0.1.pem", "127.0.0.1-key.pem"))
+    app.run(debug=True, host="0.0.0.0")
