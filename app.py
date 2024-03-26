@@ -17,7 +17,7 @@ local_file = 'model_v4_ru.pt'
 
 if not os.path.isfile(local_file):
     torch.hub.download_url_to_file('https://models.silero.ai/models/tts/ru/v4_ru.pt',
-                                   local_file)  
+                                   local_file)
 
 model = torch.package.PackageImporter(local_file).load_pickle("tts_models", "model") # type: ignore
 model.to(device)
@@ -33,7 +33,7 @@ class State:
     emotion = []
     age = []
     prompt = ""
-    generation_text = ""
+    generation_text: str | None = ""
     need_generation = True
     new_audio = False
     need_audio = False
@@ -157,7 +157,7 @@ def generate_text(prompt):
                                 ])
     state.need_audio = True
     app.logger.info("openai generation is done")
-    return response['choices'][0]['message']['content'] # type: ignore
+    return response.choices[0].message.content
 
 def generate_audio(sample_text):
     app.logger.info('starting audio generation')
