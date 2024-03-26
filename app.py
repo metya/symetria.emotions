@@ -8,14 +8,15 @@ import openai
 with open('.env', 'r') as env:
     key = env.readline().strip()
 
-openai.api_key = key
+client = openai.OpenAI(api_key=key)
+# openai.api_key = key
 
 device = torch.device('cpu')
 torch.set_num_threads(4)
-local_file = 'model.pt'
+local_file = 'model_v4_ru.pt'
 
 if not os.path.isfile(local_file):
-    torch.hub.download_url_to_file('https://models.silero.ai/models/tts/ru/v3_1_ru.pt',
+    torch.hub.download_url_to_file('https://models.silero.ai/models/tts/ru/v4_ru.pt',
                                    local_file)  
 
 model = torch.package.PackageImporter(local_file).load_pickle("tts_models", "model") # type: ignore
@@ -146,7 +147,7 @@ def generate_prompt(emotion, age, sex):
 def generate_text(prompt):
     state.need_generation = False
     app.logger.info("start generating text from openai")
-    response = openai.ChatCompletion.create(
+    response = client.chat.completions.create(
                         model="gpt-3.5-turbo",
                         temperature=1,
                         max_tokens=800,
