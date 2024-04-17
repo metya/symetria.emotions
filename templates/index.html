@@ -40,11 +40,11 @@
             //const dataInput = document.getElementById('data-input');
             //const canvas = $('#canvas').get(0)
 
-                var interpolated;
-                var need_generation = true;
-                var need_playing = true;
-                var text;
-                var prompt;
+            var interpolated;
+            var need_generation = true;
+            var need_playing = true;
+            var text;
+            var prompt;
 
             function splitTextIntoLines(text, wordsPerLine) {
                 const words = text.split(' ');
@@ -72,17 +72,31 @@
                     `platform: ${human.env.platform} | ` +
                     `agent ${human.env.agent}<br>` +
                     `need_generation ${need_generation}<br>` + // draw labels, boxes, lines, etc.
-                `prompt ${prompt}<br>` +
+                    `prompt ${prompt}<br>` +
                     `text: ${text}`;
             }
 
             async function playAudio(audioSrc) {
                 console.log('playing audio')
                 const audioPlayer = new Audio(audioSrc);
-                audioPlayer.addEventListener('ended', function () {
+                audioPlayer.addEventListener('ended', async function () {
                     need_generation = true;
                     need_playing = true;
+                    text = '';
                     console.log('playing done');
+                    // Отправляем запрос на сервер для удаления файла
+                    $.ajax({
+                        url: '/delete_audio',
+                        type: 'POST',
+                        contentType: 'application/json',
+                        data: JSON.stringify({ filename: audioSrc }),
+                        success: function (data) {
+                            console.log('Delete response:', data.message);
+                        },
+                        error: function (jqXHR, textStatus, errorThrown) {
+                            console.error('Ошибка при удалении аудио файла:', textStatus, errorThrown);
+                        }
+                    });
                 });
                 audioPlayer.play();
             }
@@ -102,9 +116,12 @@
                             need_playing = false;
                             playAudio(response.filename);
                         }
+                        console.log("check audio done")
+                        console.log("text is " + text)
+                        console.log("filename is " + response.filename)
                     },
-                    error: function (error) {
-                        console.error('Ошибка при проверке наличия нового аудиофайла:', error);
+                    error: function (jqXHR, textStatus, errorThrown) {
+                        console.error('Ошибка при проверке наличия нового аудиофайла:', textStatus, errorThrown);
                     }
                 });
             }
@@ -116,11 +133,16 @@
                     data: { data: JSON.stringify(interpolated), state: need_generation },
                     success: function (response) {
                         console.log('face data sent!');
+                    },
+                    error: function (jqXHR, textStatus, errorThrown) {
+                        console.log("DATA WAS NOW SENT, ALARM!");
                     }
                 });
             };
 
-
+            let drawLoopIntervalId;
+            let sendDataIntervalId;
+            let checkForNewAudioIntervalId;
 
             async function main() { // main entry point
                 document.getElementById('log').innerHTML =
@@ -136,12 +158,22 @@
                 canvas.width = human.webcam.width; // set canvas resolution to input webcam native resolution
                 canvas.height = human.webcam.height;
                 canvas.onclick = async () => { // pause when clicked on screen and resume on next click
-                    if (human.webcam.paused) await human.webcam.play();
-                    else human.webcam.pause();
+                    if (human.webcam.paused) {
+                        await human.webcam.play();
+                        drawLoopIntervalId = setInterval(drawLoop, 30);
+                        sendDataIntervalId = setInterval(send_data, 1000);
+                        checkForNewAudioIntervalId = setInterval(checkForNewAudio, 5000);
+                    }
+                    else {
+                        human.webcam.pause();
+                        clearInterval(drawLoopIntervalId);
+                        clearInterval(sendDataIntervalId);
+                        clearInterval(checkForNewAudioIntervalId);
+                    }
                 };
-                await setInterval(drawLoop, 30); // start draw loop
-                await setInterval(send_data, 1000);
-                await setInterval(checkForNewAudio, 5000)
+                drawLoopIntervalId = setInterval(drawLoop, 30);
+                sendDataIntervalId = setInterval(send_data, 1000);
+                checkForNewAudioIntervalId = setInterval(checkForNewAudio, 5000);
             };
 
 
