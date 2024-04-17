@@ -1,8 +1,9 @@
-from flask import Flask, render_template, Response, request, jsonify
+from flask import Flask, render_template, Response, request, jsonify, make_response
 import json
 import os
 import torch
 import openai
+import uuid
 
 
 with open(".env", "r") as env:
@@ -43,16 +44,18 @@ class State:
     big_head = False
     number_audio = 0
 
-
-state = State()
+state_dict = {}
 
 app = Flask(__name__)
 # app.logger.setLevel(logging.DEBUG)
 app.logger.info("start logger")
+app.secret_key = "onism_pidor"
 
 
 @app.route("/send_data", methods=["POST"])
 def send_data():
+    user_id = request.cookies.get("user_id")
+    state = state_dict[user_id]
     # Получаем данные из запроса
     data = request.form["data"]
     need_generation = request.form["state"]
@@ -85,7 +88,7 @@ def send_data():
             age = detections["face"][0]["age"]
             app.logger.info(f"\n{emotion=}, \n{sex=}, \n{age=}")
             state.prompt = generate_prompt(emotion, age, sex)
-            state.generation_text = generate_text(state.prompt)
+            state.generation_text = generate_text(state.prompt, state)
         elif detections["face"][0]["size"][0] > 200:
             # state.age.append(detections['face'][0]['age'])
             # state.gender.append(detections['face'][0]['gender'])
@@ -101,18 +104,19 @@ def send_data():
     app.logger.info(
         f"STATUS {state.count=}, {state.need_generation=}, {state.need_generation_from_client=}"
     )
-
     return data
 
 
 @app.route("/check_audio", methods=["GET", "POST"])
 def check_audio():
+    user_id = request.cookies.get("user_id")
+    state = state_dict[user_id]
     app.logger.info(
         f"checking need generation {state.need_generation=}, {state.need_audio=}"
     )
 
     if state.need_audio and state.big_head:
-        audio_path = generate_audio(state.generation_text)
+        audio_path = generate_audio(state.generation_text, state)
     else:
         state.new_audio = False
         audio_path = ""
@@ -133,6 +137,8 @@ def check_audio():
 
 @app.route("/<filename>")
 def audio(filename):
+    user_id = request.cookies.get("user_id")
+    state = state_dict[user_id]
     state.need_generation = True
     return app.send_static_file(filename)
 
@@ -160,7 +166,15 @@ def delete_audio():
 @app.route("/")
 def index():
     """Video streaming home page."""
+    user_id = request.cookies.get('user_id')  # Пытаемся получить user_id из куки
+    if not user_id:
+        user_id = str(uuid.uuid4())  # Генерируем новый UUID, если его нет
+        state_dict[user_id] = State()
+        response = make_response(render_template("index.html"))
+        response.set_cookie('user_id', user_id, max_age=60*60*24)  # Устанавливаем куки на 2 года
+        return response
     return render_template("index.html")
+
 
 
 def generate_prompt(emotion, age, sex):
@@ -184,7 +198,7 @@ def generate_prompt(emotion, age, sex):
     return prompt
 
 
-def generate_text(prompt):
+def generate_text(prompt, state):
     state.need_generation = False
     app.logger.info("\033[92m" + "start generating text from openai" + "\033[00m")
     response = client.chat.completions.create(
@@ -204,7 +218,7 @@ def generate_text(prompt):
     return response.choices[0].message.content
 
 
-def generate_audio(sample_text):
+def generate_audio(sample_text, state):
     state.number_audio += 1
     app.logger.info(
         "\033[93m"
