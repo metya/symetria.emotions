@@ -89,7 +89,7 @@ def send_data():
             app.logger.info(f"\n{emotion=}, \n{sex=}, \n{age=}")
             state.prompt = generate_prompt(emotion, age, sex)
             state.generation_text = generate_text(state.prompt, state)
-        elif detections["face"][0]["size"][0] > 200:
+        elif detections["face"][0]["size"][0] > 100:
             # state.age.append(detections['face'][0]['age'])
             # state.gender.append(detections['face'][0]['gender'])
             # state.emotion.append(detections['face'][0]['emotion'][0]['emotion'])
@@ -167,7 +167,7 @@ def delete_audio():
 def index():
     """Video streaming home page."""
     user_id = request.cookies.get('user_id')  # Пытаемся получить user_id из куки
-    if not user_id:
+    if not user_id or user_id not in state_dict:
         user_id = str(uuid.uuid4())  # Генерируем новый UUID, если его нет
         state_dict[user_id] = State()
         response = make_response(render_template("index.html"))
