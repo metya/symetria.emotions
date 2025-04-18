@@ -1,7 +1,7 @@
 --find-links https://download.pytorch.org/whl/torch_stable.html
 Flask
 openai
-torch==2.2.1+cpu
+torch==2.6.0
 torchvision 
 torchaudio 
 # gunicorn
